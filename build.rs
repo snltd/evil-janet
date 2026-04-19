@@ -86,6 +86,8 @@ fn main() {
     build.flag("-ggdb3");
 
     #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
+    #[cfg(target_os = "illumos")]
+    build.define("__EXTENSIONS__", None);
     build.flag("-fPIC").no_default_flags(true).compile("janet");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
