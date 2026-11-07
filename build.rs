@@ -26,6 +26,7 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header(header)
+        .header("./csrc/config_bits.h")
         .derive_debug(true)
         .use_core()
         .ctypes_prefix("::core::ffi")

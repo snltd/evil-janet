@@ -13,6 +13,7 @@ use core::{
 };
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+pub const JANET_CURRENT_CONFIG_BITS: u32 = JANET_CURRENT_CONFIG_BITS_VALUE;
 
 impl fmt::Debug for Janet {
     #[inline]
