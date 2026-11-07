@@ -1,4 +1,12 @@
 fn main() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let illumos = target_os == "illumos" || target_os == "solaris";
+
+    let mut clang_args: Vec<&str> = vec![];
+    if illumos {
+        clang_args.extend(["-D__EXTENSIONS__", "-DJANET_NO_NANBOX"]);
+    }
+
     // Cause compilation error when both almagation and link-system is set
     #[cfg(all(feature = "link-amalg", feature = "link-system"))]
     compile_error!(r#"You can only use either "link-amalg" or "system" feature, not both."#);
@@ -13,6 +21,7 @@ fn main() {
 
     // Make cargo rerun if header changes
     println!("cargo:rerun-if-changed=csrc/janet.h");
+    println!("cargo:rerun-if-changed=csrc/non_nanbox_shims.c");
 
     let allowlist_regex = "^[jJ]anet.*|[jJ]ANET.*|.*jmp";
 
@@ -27,6 +36,8 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header(header)
         .header("./csrc/config_bits.h")
+        .clang_args(clang_args.iter())
+        .blocklist_var("JANET_CURRENT_CONFIG_BITS")
         .derive_debug(true)
         .use_core()
         .ctypes_prefix("::core::ffi")
@@ -54,7 +65,16 @@ fn main() {
     let mut build = cc::Build::new();
 
     #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
+    if illumos {
+        build.define("__EXTENSIONS__", None);
+        build.define("JANET_NO_NANBOX", None);
+        println!("cargo:rustc-link-lib=socket");
+    }
+
+    #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
     build.file("csrc/janet.c").include("csrc");
+    #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
+    build.file("csrc/non_nanbox_shims.c");
 
     #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
     if let Some(val) = recursion_guard {
@@ -85,6 +105,12 @@ fn main() {
 
     #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
     build.flag("-fPIC").no_default_flags(true).compile("janet");
+
+    #[cfg(all(feature = "link-amalg", not(feature = "link-system")))]
+    if illumos {
+        build.flag("-D__EXTENSIONS__");
+        build.flag("-DJANET_NO_NANBOX");
+    }
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
